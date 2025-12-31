@@ -1,0 +1,311 @@
+{
+  "name": "Privacy-First Pharmacovigilance Agent GPU",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "73a79ea3-4f55-458f-84b0-ca7386952ba2",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "17aowMr8jlefz9JLAO81U_5mpoyklsp1EtAjLlvw9GqA",
+          "mode": "list",
+          "cachedResultName": "BMS_Pharmacovigilance_Input",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/17aowMr8jlefz9JLAO81U_5mpoyklsp1EtAjLlvw9GqA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1637360050,
+          "mode": "list",
+          "cachedResultName": "BMS_Pharmacovigilance_Input",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/17aowMr8jlefz9JLAO81U_5mpoyklsp1EtAjLlvw9GqA/edit#gid=1637360050"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "d38453fa-b612-4f19-b8da-af2b4d932472",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1vlRyYSpop07OGDj",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ia-server-unleashed:8080/v1/chat/completions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  \"model\": \"/models/phi-3-mini-4k-instruct.Q4_K_M.gguf\",\n  \"temperature\": 0.0,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a data extraction robot. You must extract medical data into a FLAT JSON object with EXACTLY these 3 keys: 'drug_suspected', 'adverse_event', 'severity_grade'.\\n\\nRULES:\\n1. 'drug_suspected': The generic or brand name.\\n2. 'adverse_event': The main symptom or diagnosis.\\n3. 'severity_grade': ONLY A NUMBER (1, 2, 3, 4, or 5). If not stated, estimate it. Do not include text like 'Grade 2', just '2'.\\n\\nDo not nest objects. Do not add extra keys.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Clinical Note: Patient reports mild headache after taking Aspirin.\"\n    },\n    {\n      \"role\": \"assistant\",\n      \"content\": \"{\\\"drug\\\": \\\"Aspirin\\\", \\\"event\\\": \\\"Headache\\\", \\\"grade\\\": \\\"1\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Clinical Note: \" + $json.Clinical_Note_Raw\n    }\n  ],\n  \"response_format\": { \"type\": \"json_object\" }\n}\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "62030f38-0a6f-45cb-8967-3bf72313aca2",
+      "name": "Agent 1 - Extractor"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d981c380-97ee-4ee2-bfaa-00a1e1119aef",
+              "name": "AI_Data",
+              "value": "={{ JSON.parse($json.choices[0].message.content) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "includeOtherFields": "=",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "2d4e69e7-1655-4fcf-805f-d0b1e5c85cc5",
+      "name": "AI_Data"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ia-server-unleashed:8080/v1/chat/completions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  \"model\": \"/models/phi-3-mini-4k-instruct.Q4_K_M.gguf\",\n  \"temperature\": 0.0,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a Drug Safety Officer. Determine the 'Action_Required' based on the Severity Grade.\\n\\nPROTOCOL:\\n- Grade 1: 'Monitor symptoms at home.'\\n- Grade 2: 'Suspend treatment temporarily and consult specialist.'\\n- Grade 3: 'URGENT: Hospital admission required. Fluid therapy/Corticosteroids.'\\n- Grade 4: 'CRITICAL: ICU Admission. Permanent discontinuation of drug. Report to Authorities immediately.'\\n- Grade 5: 'Death Protocol.'\\n\\nOutput format: JSON with a single key 'recommended_action'.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Case Data:\\nDrug: \" + $json.AI_Data.drug_suspected + \"\\nEvent: \" + $json.AI_Data.adverse_event + \"\\nGrade: \" + $json.AI_Data.severity_grade\n    }\n  ],\n  \"response_format\": { \"type\": \"json_object\" }\n}\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        832,
+        0
+      ],
+      "id": "5cc6a00d-b3c3-4e8e-a078-14ed46858cf9",
+      "name": "Agent 2 - Risk Manager"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "17aowMr8jlefz9JLAO81U_5mpoyklsp1EtAjLlvw9GqA",
+          "mode": "list",
+          "cachedResultName": "BMS_Pharmacovigilance_Input",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/17aowMr8jlefz9JLAO81U_5mpoyklsp1EtAjLlvw9GqA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1637360050,
+          "mode": "list",
+          "cachedResultName": "BMS_Pharmacovigilance_Input",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/17aowMr8jlefz9JLAO81U_5mpoyklsp1EtAjLlvw9GqA/edit#gid=1637360050"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": 0,
+            "Drug_Suspected": "={{ $('AI_Data').item.json.AI_Data.drug_suspected }}",
+            "Adverse_Event_Extracted": "={{ $('AI_Data').item.json.AI_Data.adverse_event }}",
+            "Severity_Grade": "={{ $('AI_Data').item.json.AI_Data.severity_grade }}",
+            "Action_Required": "={{ $json.choices[0].message.content }}",
+            "Report_ID": "={{ $('Get row(s) in sheet').item.json.Report_ID }}"
+          },
+          "matchingColumns": [
+            "Report_ID"
+          ],
+          "schema": [
+            {
+              "id": "Report_ID",
+              "displayName": "Report_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Clinical_Note_Raw",
+              "displayName": "Clinical_Note_Raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Drug_Suspected",
+              "displayName": "Drug_Suspected",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Adverse_Event_Extracted",
+              "displayName": "Adverse_Event_Extracted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Severity_Grade",
+              "displayName": "Severity_Grade",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Action_Required",
+              "displayName": "Action_Required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "71f29c10-1a71-4cbb-b6ef-d2efe509f566",
+      "name": "Update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1vlRyYSpop07OGDj",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Agent 1 - Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 1 - Extractor": {
+      "main": [
+        [
+          {
+            "node": "AI_Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI_Data": {
+      "main": [
+        [
+          {
+            "node": "Agent 2 - Risk Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 2 - Risk Manager": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "111df6ab-c2c5-4e0a-a2a8-f5ffa6d53492",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "263a48e4b2ae26fdc8db482eab4066c081faa3b9fb97e220bf1c55629292e7ae"
+  },
+  "id": "xnvaJPxFPBmSjrmK",
+  "tags": []
+}

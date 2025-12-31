@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Privacy-First-Pharmacovigilance-Agent"
+type: software
+authors:
+  - family-names: "Pérez-Santiago"
+    given-names: "Ángel Ignacio"
+    alias: "Nuiter"
+    email: "nuiter@gmail.com"
+    orcid: "https://orcid.org/0000-0001-5694-2126"
+    affiliation: "Independent Researcher"
+version: 1.0.0
+date-released: 2025-12-31
+license: MIT
+repository-code: "https://github.com/Nuiter/Privacy-First-Pharmacovigilance-Agent"
+keywords:
+  - pharmacovigilance
+  - drug-safety
+  - adverse-events
+  - clinical-data-science
+  - local-ai
+  - slm
+  - LLM
+  - phi-3
+  - n8n
+  - docker
+  - privacy-preserving-ai
+  - air-gapped-ai
+  - healthcare-automation
+  - medical-nlp
+  - real-world-data
+  - rwd
+  - agentic-workflows
+  - clinical-notes-extraction
+  - gdpr
+  - hipaa
+  - compliance
+  - data-sovereignty
+  - bioinformatics

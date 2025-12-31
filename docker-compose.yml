@@ -1,0 +1,73 @@
+# -----------------------------------------------------------------------------
+# Docker Compose Blueprint for: Privacy-First Pharmacovigilance Agent
+# -----------------------------------------------------------------------------
+#
+# Author: [Angel Ignacio Pérez Santiago / Nuiter]
+#
+# Version: 1.1.0
+#
+# Description:
+#   Advanced AI automation stack. Deploys n8n alongside a Local AI server 
+#   accelerated by GPU (NVIDIA GTX 1050 Ti). Optimized for privacy-first 
+#   clinical data extraction using Small Language Models (SLMs).
+#
+# -----------------------------------------------------------------------------
+
+services:
+  # ----------------------------------------
+  # SERVICE 1: n8n - The Automation Engine
+  # ----------------------------------------
+  n8n:
+    # Image: n8nio/n8n
+    # Battle-tested, legacy-supported, and actively updated.
+    image: n8nio/n8n
+    container_name: n8n-unleashed
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_master_data:/home/node/.n8n
+    environment:
+      - GENERIC_TIMEZONE=Europe/Madrid
+      - N8N_ENCRYPTION_KEY=Yoursecurepassword123
+
+  # ----------------------------------------
+  # SERVICE 2: AI Server (GPU Accelerated)
+  # ----------------------------------------
+  ia-server:
+    # Image: ghcr.io/ggml-org/llama.cpp:server
+    # Official Llama.cpp image. Supports both CPU and NVIDIA GPU (CUDA).
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ia-server-unleashed
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+
+    volumes:
+      # RELATIVE PATH MAPPING:
+      # Maps the sibling folder "../shared-ai-models" on the host to "/models" in the container.
+      # This allows sharing model files across different repositories.
+      - ../shared-ai-models:/models
+
+
+    command: 
+      # Model: phi-3-mini-4k-instruct.Q4_K_M.gguf (~2.2GB)
+      # --n-gpu-layers 99: Forces all 33+ layers into the 4GB VRAM of the 1050 Ti.
+      -m /models/phi-3-mini-4k-instruct.Q4_K_M.gguf -c 4096 --host 0.0.0.0 --port 8080 --n-gpu-layers 99
+    
+    # REQUIRED: Bridges the host GPU to the Docker container.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  n8n_master_data:
+    external: true
+
+networks:
+  default:
+    name: unleashed-network
